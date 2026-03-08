@@ -12,7 +12,32 @@ export interface TableColumn {
   subColumns?: SubColumn[];
 }
 
+export interface ObservationTable {
+  id: string;
+  title: string;
+  columns: TableColumn[];
+  numRows: number;
+}
+
+export interface ImageItem {
+  id: string;
+  file: File | null;
+  preview: string | null;
+  caption: string;
+}
+
+export type ContentItem = 
+  | { type: "text"; id: string; section: string; content: string }
+  | { type: "table"; id: string; data: ObservationTable }
+  | { type: "image"; id: string; data: ImageItem };
+
 export interface ExperimentData {
+  title: string;
+  content: ContentItem[];
+}
+
+// Legacy support
+export interface LegacyExperimentData {
   title: string;
   aim: string;
   apparatus: string;

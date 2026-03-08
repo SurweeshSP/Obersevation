@@ -4,22 +4,44 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import labHero from "@/assets/lab-hero.jpg";
+import recLogo from "@/assets/REC-logo.png";
 
 const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [role, setRole] = useState<"student" | "teacher" | "admin">("student");
   const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // For now, navigate to dashboard directly (no auth backend yet)
-    navigate("/dashboard");
+    
+    // Store user role in localStorage for role-based access
+    localStorage.setItem("userRole", role);
+    localStorage.setItem("userEmail", email);
+    
+    // Navigate based on role
+    if (role === "student") {
+      navigate("/student-dashboard");
+    } else {
+      // Teacher and Admin go to the existing dashboard
+      navigate("/dashboard");
+    }
   };
 
   return (
     <div className="min-h-screen flex">
+      {/* REC Logo - Top Left */}
+      <div className="absolute top-6 right-10 z-20">
+        <img
+          src={recLogo}
+          alt="REC Logo"
+          className="h-46 w-20"
+          style={{ transform: 'rotate(90deg)'}}
+        />
+      </div>
+
       {/* Left Hero Panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
@@ -63,6 +85,20 @@ const Login = () => {
                   />
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Login As</Label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "student" | "teacher" | "admin")}
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>

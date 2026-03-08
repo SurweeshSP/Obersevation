@@ -1,46 +1,82 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 import { ExperimentData } from "@/types/experiment";
-import DiagramUpload from "@/components/lab/DiagramUpload";
-import TableBuilder from "@/components/lab/TableBuilder";
+import ContentBuilder from "@/components/lab/ContentBuilder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { api } from "@/services/api";
 
 const initialData: ExperimentData = {
   title: "",
-  aim: "",
-  apparatus: "",
-  procedure: "",
-  diagramFile: null,
-  diagramPreview: null,
-  columns: [],
-  numRows: 5,
-  result: "",
+  content: [],
 };
 
 const ExperimentPage = () => {
   const [data, setData] = useState<ExperimentData>(initialData);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [experimentId, setExperimentId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { id } = useParams();
 
-  const update = <K extends keyof ExperimentData>(key: K, value: ExperimentData[K]) => {
-    setData((prev) => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    if (id && id !== "new") {
+      loadExperiment(id);
+    }
+  }, [id]);
+
+  const loadExperiment = async (expId: string) => {
+    setIsLoading(true);
+    try {
+      const experiment = await api.getExperiment(expId);
+      setData({
+        title: experiment.title,
+        content: experiment.content,
+      });
+      setExperimentId(expId);
+      toast.success("Experiment loaded");
+    } catch (error) {
+      console.error("Error loading experiment:", error);
+      toast.error("Failed to load experiment");
+      navigate("/dashboard");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDiagram = (file: File) => {
-    update("diagramFile", file);
-    update("diagramPreview", URL.createObjectURL(file));
-  };
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!data.title.trim()) {
       toast.error("Please enter an experiment title");
       return;
     }
-    toast.success("Experiment saved successfully!");
-    console.log("Experiment data:", data);
+
+    setIsSaving(true);
+    try {
+      const userEmail = localStorage.getItem("userEmail") || undefined;
+      const saveId = experimentId || Date.now().toString();
+      
+      await api.saveExperiment({
+        id: saveId,
+        ...data,
+        userEmail,
+      });
+      
+      if (!experimentId) {
+        setExperimentId(saveId);
+      }
+      
+      toast.success("Experiment saved successfully!");
+      
+      // Navigate back to dashboard after a short delay
+      setTimeout(() => navigate("/dashboard"), 1000);
+    } catch (error) {
+      console.error("Error saving experiment:", error);
+      toast.error("Failed to save experiment. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -54,93 +90,47 @@ const ExperimentPage = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h2 className="text-xl font-bold text-foreground">Create New Experiment</h2>
+          <h2 className="text-xl font-bold text-foreground">
+            {experimentId ? "Edit Experiment" : "Create New Experiment"}
+          </h2>
         </div>
-        <Button onClick={handleSave} className="gap-2">
-          <Save className="h-4 w-4" /> Save Experiment
+        <Button onClick={handleSave} className="gap-2" disabled={isSaving || isLoading}>
+          <Save className="h-4 w-4" /> {isSaving ? "Saving..." : "Save Experiment"}
         </Button>
       </div>
 
-      <div className="max-w-4xl mx-auto p-8 space-y-6">
-        {/* Title */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Experiment Title</h3>
-          <Input
-            value={data.title}
-            onChange={(e) => update("title", e.target.value)}
-            placeholder="e.g., Heat Transfer Experiment"
-            className="text-lg"
-          />
+      {isLoading ? (
+        <div className="max-w-4xl mx-auto p-8">
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading experiment...</p>
+          </div>
         </div>
+      ) : (
+        <div className="max-w-4xl mx-auto p-8 space-y-6">
+          {/* Title */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Experiment Title</h3>
+            <Input
+              value={data.title}
+              onChange={(e) => setData({ ...data, title: e.target.value })}
+              placeholder="e.g., Heat Transfer Experiment"
+              className="text-lg"
+            />
+          </div>
 
-        {/* Aim */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Aim</h3>
-          <Textarea
-            value={data.aim}
-            onChange={(e) => update("aim", e.target.value)}
-            placeholder="Describe the aim of this experiment..."
-            rows={3}
-          />
+          {/* Content Builder */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Experiment Content</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Add and arrange text sections, tables, and images in any order. Drag items to reorder.
+            </p>
+            <ContentBuilder
+              content={data.content}
+              onChange={(content) => setData({ ...data, content })}
+            />
+          </div>
         </div>
-
-        {/* Apparatus */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Apparatus / Requirements</h3>
-          <Textarea
-            value={data.apparatus}
-            onChange={(e) => update("apparatus", e.target.value)}
-            placeholder="List the apparatus and materials required..."
-            rows={4}
-          />
-        </div>
-
-        {/* Procedure */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Procedure</h3>
-          <Textarea
-            value={data.procedure}
-            onChange={(e) => update("procedure", e.target.value)}
-            placeholder="Describe the step-by-step procedure..."
-            rows={6}
-          />
-        </div>
-
-        {/* Diagram */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Diagram</h3>
-          <DiagramUpload
-            diagramPreview={data.diagramPreview}
-            onFileSelect={handleDiagram}
-            onRemove={() => {
-              update("diagramFile", null);
-              update("diagramPreview", null);
-            }}
-          />
-        </div>
-
-        {/* Table Builder */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Observation Table Builder</h3>
-          <TableBuilder
-            columns={data.columns}
-            numRows={data.numRows}
-            onColumnsChange={(cols) => update("columns", cols)}
-            onNumRowsChange={(n) => update("numRows", n)}
-          />
-        </div>
-
-        {/* Result */}
-        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Result</h3>
-          <Textarea
-            value={data.result}
-            onChange={(e) => update("result", e.target.value)}
-            placeholder="Expected result or formula for calculation..."
-            rows={4}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 };
